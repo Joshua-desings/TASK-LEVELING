@@ -1,31 +1,41 @@
-const Task = require('../models/taskModel');
-const Joi = require('joi');
+const Task = require("../models/taskModel");
+const Joi = require("joi");
 
 // Esquema de validación para la creación y actualización de tareas
 const taskSchema = Joi.object({
   title: Joi.string().min(3).max(100).required(),
   description: Joi.string().min(0).max(1000),
   completed: Joi.boolean(),
-  priority: Joi.string().valid('low', 'medium', 'high')
+  priority: Joi.string().valid("low", "medium", "high"),
+  tags: Joi.array().items(Joi.string()),
+}).unknown({
+  _id: false,
+  createdBy: false,
+  createdAt: false,
+  __v: false
 });
 
-// Obtener todas las tareas con paginación y ordenamiento
+
+// Obtener todas las tareas del usuario con paginación y ordenamiento
 exports.getAllTasks = async (req, res) => {
   try {
     // Parámetros de paginación y ordenamiento
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const sortBy = req.query.sortBy || 'createdAt'; // Campo para ordenar
-    const sortOrder = req.query.sortOrder || 'desc'; // Orden ascendente o descendente
+    const sortBy = req.query.sortBy || "createdAt"; // Campo para ordenar
+    const sortOrder = req.query.sortOrder || "desc"; // Orden ascendente o descendente
 
-    // Contar total de tareas
-    const totalTasks = await Task.countDocuments();
+    // ID de usuario obtenido del token de autenticación
+    const userId = req.user.userId;
+
+    // Contar total de tareas del usuario
+    const totalTasks = await Task.countDocuments({ createdBy: userId });
 
     // Calcular número de páginas
     const totalPages = Math.ceil(totalTasks / limit);
 
-    // Obtener las tareas de la página actual
-    const tasks = await Task.find()
+    // Obtener las tareas del usuario de la página actual
+    const tasks = await Task.find({ createdBy: userId })
       .sort({ [sortBy]: sortOrder })
       .skip((page - 1) * limit)
       .limit(limit);
@@ -38,12 +48,15 @@ exports.getAllTasks = async (req, res) => {
         totalTasks,
         totalPages,
         currentPage: page,
-        pageSize: limit
-      }
+        pageSize: limit,
+      },
     });
   } catch (error) {
-    console.error('Error al obtener las tareas:', error);
-    res.status(500).json({ success: false, message: 'Error al obtener las tareas' });
+    console.error("Error al obtener las tareas del usuario:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error al obtener las tareas del usuario",
+    });
   }
 };
 
@@ -55,15 +68,19 @@ exports.createTask = async (req, res) => {
     return res.status(400).json({ message: error.details[0].message });
   }
 
-  // Crear nueva tarea
-  const task = new Task({
-    title: req.body.title,
-    description: req.body.description,
-    completed: req.body.completed || false,
-    priority: req.body.priority || 'low'
-  });
-
   try {
+    // Obtener el ID del usuario desde el token de autenticación
+    const userId = req.user.userId;
+
+    // Crear nueva tarea asociada con el usuario
+    const task = new Task({
+      title: req.body.title,
+      description: req.body.description,
+      completed: req.body.completed || false,
+      priority: req.body.priority || "low",
+      createdBy: userId, // Asociar la tarea con el ID de usuario
+    });
+
     const newTask = await task.save();
     res.status(201).json(newTask);
   } catch (err) {
@@ -74,9 +91,9 @@ exports.createTask = async (req, res) => {
 // Obtener una tarea por su ID
 exports.getTaskById = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.taskId);
+    const task = await Task.findOne({ _id: req.params.taskId, createdBy: req.user.userId });
     if (!task) {
-      return res.status(404).json({ message: 'Tarea no encontrada' });
+      return res.status(404).json({ message: "Tarea no encontrada" });
     }
     res.json(task);
   } catch (err) {
@@ -93,9 +110,13 @@ exports.updateTask = async (req, res) => {
   }
 
   try {
-    const updatedTask = await Task.findByIdAndUpdate(req.params.taskId, req.body, { new: true });
+    const updatedTask = await Task.findOneAndUpdate(
+      { _id: req.params.taskId, createdBy: req.user.userId },
+      req.body,
+      { new: true }
+    );
     if (!updatedTask) {
-      return res.status(404).json({ message: 'Tarea no encontrada' });
+      return res.status(404).json({ message: "Tarea no encontrada" });
     }
     res.json(updatedTask);
   } catch (err) {
@@ -106,9 +127,13 @@ exports.updateTask = async (req, res) => {
 // Actualizar la prioridad de una tarea por su ID
 exports.updateTaskPriority = async (req, res) => {
   try {
-    const updatedTask = await Task.findByIdAndUpdate(req.params.taskId, { priority: req.body.priority }, { new: true });
+    const updatedTask = await Task.findOneAndUpdate(
+      { _id: req.params.taskId, createdBy: req.user.userId },
+      { priority: req.body.priority },
+      { new: true }
+    );
     if (!updatedTask) {
-      return res.status(404).json({ message: 'Tarea no encontrada' });
+      return res.status(404).json({ message: "Tarea no encontrada" });
     }
     res.json(updatedTask);
   } catch (err) {
@@ -119,11 +144,11 @@ exports.updateTaskPriority = async (req, res) => {
 // Eliminar una tarea por su ID
 exports.deleteTask = async (req, res) => {
   try {
-    const deletedTask = await Task.findByIdAndDelete(req.params.taskId);
+    const deletedTask = await Task.findOneAndDelete({ _id: req.params.taskId, createdBy: req.user.userId });
     if (!deletedTask) {
-      return res.status(404).json({ message: 'Tarea no encontrada' });
+      return res.status(404).json({ message: "Tarea no encontrada" });
     }
-    res.json({ message: 'Tarea eliminada correctamente' });
+    res.json({ message: "Tarea eliminada correctamente" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

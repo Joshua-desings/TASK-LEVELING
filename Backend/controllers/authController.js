@@ -47,6 +47,12 @@ exports.signup = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
+    // Validar los datos de entrada
+    const { error } = loginSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
     // Obtenemos los datos del cuerpo de la solicitud
     const { email, password } = req.body;
 
@@ -62,16 +68,17 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Contraseña incorrecta' });
     }
 
-    // Verificamos si el usuario es un administrador
-    if (user.role === 'Admin') {
-      // Si es un administrador, generamos un token de administrador
-      const adminToken = jwt.sign({ userId: user._id, role: user.role }, process.env.ADMIN_TOKEN_SECRET);
-      return res.status(200).json({ message: 'Inicio de sesión exitoso como administrador', token: adminToken });
-    }
+    // Generamos el token de acceso con el ID de usuario, el nombre de usuario y el rol como payload
+    const payload = {
+      userId: user._id,
+      username: user.username,
+      role: user.role
+    };
 
-    // Si no es un administrador, generamos un token de usuario normal
-    const accessToken = jwt.sign({ userId: user._id, role: user.role }, process.env.ACCESS_TOKEN_SECRET);
-    res.status(200).json({ message: 'Inicio de sesión exitoso', token: accessToken });
+    // Generamos el token de acceso
+    const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET);
+
+    res.status(200).json({ message: 'Inicio de sesión exitoso', token: accessToken, role: user.role, username: user.username });
   } catch (error) {
     console.error('Error al iniciar sesión:', error);
     res.status(500).json({ message: 'Ocurrió un error al iniciar sesión' });
@@ -80,20 +87,91 @@ exports.login = async (req, res) => {
 
 exports.logout = async (req, res) => {
   try {
-    // Implementa la lógica para cerrar sesión de usuarios aquí
-    // Por ejemplo, podrías eliminar la sesión del usuario o realizar cualquier otra acción necesaria
-    // Aquí un ejemplo simple de cómo podrías borrar la sesión en el servidor (si estás usando sesiones):
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Error al cerrar sesión:', err);
-        res.status(500).send('Error al cerrar sesión');
-      } else {
-        res.send('Sesión cerrada exitosamente');
-      }
-    });
+    
+    // Envía un mensaje indicando que la sesión se cerró exitosamente
+    res.status(200).send('Sesión cerrada exitosamente');
+
+    // Redirige al usuario a la página de inicio después de cerrar sesión
+    res.redirect('http://localhost:3000/');
   } catch (error) {
     console.error('Error al cerrar sesión:', error);
     res.status(500).send('Error al cerrar sesión');
   }
 };
+
+exports.getAllUsers = async (req, res) => {
+  try {
+    // Verificar si el usuario tiene permisos de administrador
+    if (req.user.role !== "Admin") {
+      return res.status(403).json({ message: "No tiene permiso para acceder a esta ruta" });
+    }
+
+    // Buscar los primeros 10 usuarios en la base de datos, seleccionando solo los campos necesarios y excluyendo la contraseña
+    const users = await User.find({}, 'username email role').limit(10);
+
+    // Verificar si se encontraron usuarios
+    if (!users || users.length === 0) {
+      throw new Error('No se encontraron usuarios');
+    }
+
+    // Devolver la lista de usuarios
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Error al obtener usuarios:', error);
+    res.status(500).json({ message: 'Ocurrió un error al obtener usuarios' });
+  }
+};
+
+exports.promoteToAdmin = async (req, res) => {
+  try {
+    // Verificar si el usuario tiene permisos de administrador
+    if (req.user.role !== "Admin") {
+      return res.status(403).json({ message: "No tiene permiso para realizar esta acción" });
+    }
+
+    const { userId } = req.params;
+
+    // Buscar al usuario por su ID
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Actualizar el rol del usuario a "Admin"
+    user.role = 'Admin';
+    await user.save();
+
+    res.status(200).json({ message: 'Usuario promovido a administrador exitosamente' });
+  } catch (error) {
+    console.error('Error al promover usuario a administrador:', error);
+    res.status(500).json({ message: 'Ocurrió un error al promover usuario a administrador' });
+  }
+};
+
+exports.demoteFromAdmin = async (req, res) => {
+  try {
+    // Verificar si el usuario tiene permisos de administrador
+    if (req.user.role !== "Admin") {
+      return res.status(403).json({ message: "No tiene permiso para realizar esta acción" });
+    }
+
+    const { userId } = req.params;
+
+    // Buscar al usuario por su ID
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Actualizar el rol del usuario
+    user.role = 'Usuario';
+    await user.save();
+
+    res.status(200).json({ message: 'Privilegios de administrador removidos exitosamente' });
+  } catch (error) {
+    console.error('Error al remover privilegios de administrador:', error);
+    res.status(500).json({ message: 'Ocurrió un error al remover privilegios de administrador' });
+  }
+};
+
 

@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button, TextField, Typography, Container, Grid } from '@mui/material';
-import axios from 'axios';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button, TextField, Typography, Container, Grid } from "@mui/material";
+import axios from "axios";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
-  const [passwordError, setPasswordError] = useState('');
+  const [passwordError, setPasswordError] = useState("");
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -24,25 +24,34 @@ const RegisterPage = () => {
     const { confirmPassword, ...data } = formData;
 
     if (data.password !== formData.confirmPassword) {
-      setPasswordError('Las contraseñas no coinciden');
+      setPasswordError("Las contraseñas no coinciden");
       return;
     }
 
     try {
       // Enviar datos del formulario al backend (excluyendo confirmPassword)
-      const response = await axios.post('http://localhost:5000/api/signup', data);
+      const response = await axios.post(
+        "http://localhost:5000/api/signup",
+        data
+      );
       console.log(response.data);
       // Redirigir al usuario a la página de inicio de sesión después del registro exitoso
-      navigate('/login');
+      navigate("/login");
     } catch (error) {
-      console.error('Error al registrar:', error);
+      console.error("Error al registrar:", error);
       // Manejar errores de registro
     }
   };
 
   return (
     <Container>
-      <Grid container spacing={3} justifyContent="center" alignItems="center" style={{ minHeight: '100vh' }}>
+      <Grid
+        container
+        spacing={3}
+        justifyContent="center"
+        alignItems="center"
+        style={{ minHeight: "100vh" }}
+      >
         <Grid item xs={12} sm={8} md={6}>
           <Typography variant="h4" gutterBottom>
             Registro
@@ -86,7 +95,7 @@ const RegisterPage = () => {
               margin="normal"
               value={formData.confirmPassword}
               onChange={handleChange}
-              error={passwordError !== ''}
+              error={passwordError !== ""}
               helperText={passwordError}
             />
             <Button type="submit" variant="contained" color="primary">

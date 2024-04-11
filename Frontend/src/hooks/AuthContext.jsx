@@ -11,20 +11,24 @@ export const useAuth = () => {
 // Proveedor de autenticación que envuelve toda la aplicación
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [username, setUsername] = useState('');
 
   // Función para iniciar sesión
-  const login = () => {
+  const login = (username) => {
     setIsAuthenticated(true);
+    setUsername(username);
   };
 
   // Función para cerrar sesión
   const logout = () => {
     setIsAuthenticated(false);
+    setUsername('');
   };
 
   // Objeto de contexto de autenticación
   const authContextValue = {
     isAuthenticated,
+    username,
     login,
     logout
   };
